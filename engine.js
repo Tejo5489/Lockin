@@ -303,6 +303,12 @@ const graphCanvas = document.getElementById('graphCanvas');
 const graphCtx = graphCanvas.getContext('2d');
 if (graphCanvas) graphCanvas.style.transform = 'scaleX(1)';
 
+// --- THE FIX: OFF-SCREEN MIDDLEMAN CANVAS ---
+const offscreenCanvas = document.createElement('canvas');
+const offscreenCtx = offscreenCanvas.getContext('2d', { willReadFrequently: true });
+offscreenCanvas.width = 640;
+offscreenCanvas.height = 480;
+
 // AI State
 let isRunning = false;
 let isInitializing = false; 
@@ -431,16 +437,14 @@ function updateStateUI() {
 function onResults(results) {
     if (!isRunning) return;
 
-    // FIX: The exact moment the AI successfully reads the first frame, we drop the loading screen!
     if (!loadingOverlay.classList.contains('hidden')) {
         loadingOverlay.classList.add('hidden');
         videoPlaceholder.classList.add('hidden');
         canvasElement.classList.remove('hidden');
         startBtn.classList.add('hidden');
         stopBtn.classList.remove('hidden');
-        isInitializing = false; // Officially unlocked
+        isInitializing = false; 
         
-        // Start timers strictly only when AI is live
         if (!sessionTimer) {
             sessionTimer = setInterval(() => {
                 totalTimeSec++;
@@ -466,24 +470,23 @@ function onResults(results) {
         }
     }
 
-    canvasElement.width = videoElement.videoWidth || 640;
-    canvasElement.height = videoElement.videoHeight || 480;
+    canvasElement.width = 640;
+    canvasElement.height = 480;
     
     canvasCtx.save();
     canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
     
     if (results.image) {
+        // Draw the raw camera feed natively
         canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
     }
     
     if (results.multiFaceLandmarks && results.multiFaceLandmarks.length > 0) {
         const landmarks = results.multiFaceLandmarks[0];
-        drawConnectors(canvasCtx, landmarks, FACEMESH_TESSELATION, {color: 'rgba(15, 23, 42, 0.2)', lineWidth: 1}); 
-        drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_EYE, {color: '#1E3A8A', lineWidth: 4}); 
-        drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_EYE, {color: '#1E3A8A', lineWidth: 4}); 
-        drawConnectors(canvasCtx, landmarks, FACEMESH_RIGHT_IRIS, {color: '#D97706', lineWidth: 2}); 
-        drawConnectors(canvasCtx, landmarks, FACEMESH_LEFT_IRIS, {color: '#D97706', lineWidth: 2}); 
-        drawConnectors(canvasCtx, landmarks, FACEMESH_FACE_OVAL, {color: '#0F172A', lineWidth: 4});
+        
+        // FEATURE UPGRADE: Removed the robotic tracking mesh lines.
+        // The AI now works completely invisibly behind the scenes.
+        // Users just see a clean mirror of themselves, making it feel native and premium.
 
         currentScore = calculateAttentionScore(landmarks);
     } else {
@@ -494,12 +497,12 @@ function onResults(results) {
     updateStateUI();
 }
 
-// NATIVE DETECTION LOOP
 async function processVideoFrame() {
     if (!isRunning) return;
     try {
         if (videoElement.readyState >= 2 && faceMesh) {
-            await faceMesh.send({ image: videoElement });
+            offscreenCtx.drawImage(videoElement, 0, 0, offscreenCanvas.width, offscreenCanvas.height);
+            await faceMesh.send({ image: offscreenCanvas });
         }
     } catch (e) {
         // Suppressing console spam while it boots
@@ -514,7 +517,6 @@ async function initModel() {
     const loadingTextObj = document.querySelector('#loadingOverlay p');
     loadingOverlay.classList.remove('hidden');
     
-    // Reset metrics
     totalTimeSec = 0; unfocusedSeconds = 0; onCameraSec = 0; offCameraSec = 0; breaksCount = 0;
     scoreHistory.fill(0);
     document.getElementById('uiOnCamera').innerText = "00:00";
@@ -523,7 +525,6 @@ async function initModel() {
 
     try {
         if (loadingTextObj) loadingTextObj.innerText = "1/4: WAKING UP WEBCAM...";
-        // STEP 1: NATIVE WEBRTC CAMERA INJECTION
         nativeStream = await navigator.mediaDevices.getUserMedia({
             video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: "user" }
         });
@@ -533,7 +534,7 @@ async function initModel() {
         videoElement.playsInline = true;
         
         videoElement.classList.remove('hidden');
-        videoElement.style.cssText = 'position: absolute; top: 0; left: 0; width: 1px; height: 1px; z-index: -1; opacity: 0; pointer-events: none;';
+        videoElement.style.cssText = 'position: fixed; top: -10000px; left: -10000px; width: 640px; height: 480px; z-index: -1; pointer-events: none;';
 
         if (loadingTextObj) loadingTextObj.innerText = "2/4: MOUNTING VIDEO FEED...";
         
@@ -550,21 +551,15 @@ async function initModel() {
             new Promise(resolve => setTimeout(resolve, 3000)) 
         ]);
 
-        // STEP 2: LOAD AI
         if(!faceMesh) {
             if (loadingTextObj) loadingTextObj.innerText = "3/4: FETCHING AI FILES...";
-            // Reverted back to jsdelivr as it is drastically more stable than unpkg for WASM
             faceMesh = new FaceMesh({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`});
             faceMesh.setOptions({ maxNumFaces: 1, refineLandmarks: true, minDetectionConfidence: 0.5, minTrackingConfidence: 0.5 });
             faceMesh.onResults(onResults);
-            
-            // THE FIX: We completely deleted "await faceMesh.initialize()". 
-            // It will initialize implicitly inside the processVideoFrame loop!
         }
 
         if (loadingTextObj) loadingTextObj.innerText = "4/4: COMPILING AI ENGINE (WAIT FOR IT)...";
         
-        // Start throwing frames at it. The onResults callback will magically close the loading screen when done.
         isRunning = true;
         processVideoFrame();
 
@@ -597,7 +592,7 @@ function endSession() {
     }
     
     clearInterval(sessionTimer);
-    sessionTimer = null; // Important reset
+    sessionTimer = null; 
     
     canvasElement.classList.add('hidden');
     videoPlaceholder.classList.remove('hidden');
@@ -658,6 +653,7 @@ function closeSummary() {
     document.getElementById('summaryModal').classList.add('hidden');
 }
 
+// FEATURE UPGRADE: Downloadable text reports instead of a simple copy-paste
 function generateAIReport() {
     let completedTasks = tasks.filter(t => t.completed).length;
     let currentWeekHabits = 0; let lastWeekHabits = 0;
@@ -686,9 +682,39 @@ function generateAIReport() {
 
     document.getElementById('reportText').value = report;
     document.getElementById('reportModal').classList.remove('hidden');
-    document.getElementById('copyBtn').innerHTML = '<i class="ph ph-copy"></i> Copy Report';
+    
+    // Convert the 'Copy' button into a true 'Download' button dynamically
+    const actionBtn = document.getElementById('copyBtn');
+    actionBtn.innerHTML = '<i class="ph ph-download-simple"></i> Download Report';
+    
+    // Override the HTML onclick method
+    actionBtn.onclick = function() {
+        const textToSave = document.getElementById('reportText').value;
+        const blob = new Blob([textToSave], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        
+        // Create an invisible download link and trigger it
+        const a = document.createElement('a');
+        a.href = url;
+        const dateStr = new Date().toISOString().split('T')[0];
+        a.download = `LockIn_Report_${dateStr}.txt`;
+        
+        document.body.appendChild(a);
+        a.click();
+        
+        // Clean up
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        // Visual confirmation
+        this.innerHTML = '<i class="ph ph-check"></i> Downloaded!';
+        setTimeout(() => {
+            this.innerHTML = '<i class="ph ph-download-simple"></i> Download Report';
+        }, 2000);
+    };
 }
 
+// Fallback kept just in case, but generateAIReport overrides it dynamically anyway
 function copyReport() {
     const text = document.getElementById('reportText');
     text.select();
