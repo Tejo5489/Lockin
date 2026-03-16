@@ -193,22 +193,27 @@
         </div>
     </div>
 
-    <!-- AI Report Modal -->
+    <!-- AI Report Modal (UPGRADED) -->
     <div id="reportModal" class="fixed inset-0 z-50 flex items-center justify-center bg-beige/80 backdrop-blur-sm hidden transition-opacity">
         <div class="neo-panel p-8 max-w-lg w-full text-center">
             <h2 class="text-3xl font-display font-black mb-2 text-navy uppercase tracking-widest border-b-4 border-navy pb-4 flex items-center justify-center gap-3">
                 <i class="ph ph-sparkle text-brand-blue"></i> Execution Report
             </h2>
             
-            <p class="text-navy-light text-sm font-bold mb-4">Show them you're outworking everyone. Flex your consistency.</p>
+            <p class="text-navy-light text-sm font-bold mt-4 mb-6">Show them you're outworking everyone. Flex your consistency.</p>
             
+            <!-- THE FIX: Rich HTML Display Container instead of a boring textarea -->
             <div class="my-4 text-left">
-                <textarea id="reportText" class="w-full h-48 neo-input p-4 rounded-lg font-mono text-sm text-navy resize-none" readonly></textarea>
+                <div id="reportVisual" class="w-full neo-panel p-5 rounded-lg bg-white flex flex-col gap-4">
+                    <!-- Dynamic HTML goes here -->
+                </div>
+                <!-- HIDDEN: The raw text field strictly for downloading the file -->
+                <textarea id="reportText" class="hidden"></textarea>
             </div>
 
-            <div class="flex gap-4">
-                <button onclick="copyReport()" id="copyBtn" class="neo-btn neo-btn-blue py-3 px-6 flex-1 rounded-lg flex items-center justify-center gap-2">
-                    <i class="ph ph-copy"></i> Copy Report
+            <div class="flex gap-4 mt-8">
+                <button id="copyBtn" class="neo-btn neo-btn-blue py-3 px-6 flex-1 rounded-lg flex items-center justify-center gap-2">
+                    <i class="ph ph-download-simple"></i> Download
                 </button>
                 <button onclick="closeReport()" class="neo-btn neo-btn-white py-3 px-6 flex-1 rounded-lg">
                     Close
@@ -368,7 +373,7 @@
                     
                     <div id="loadingOverlay" class="absolute inset-0 bg-navy/90 flex flex-col items-center justify-center hidden z-10">
                         <i class="ph ph-spinner-gap animate-spin text-5xl text-brand-blue mb-4"></i>
-                        <p class="text-white font-mono text-sm font-bold tracking-widest uppercase">Booting Neural Engine...</p>
+                        <p class="text-white font-mono text-sm font-bold tracking-widest uppercase mt-4">Booting Neural Engine...</p>
                     </div>
                 </div>
 
