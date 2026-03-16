@@ -34,8 +34,8 @@ function createWindow () {
     return true;
   });
 
-  // Load your UI
-  mainWindow.loadFile('acuity_app.html');
+  // Load your simple, original UI
+  mainWindow.loadFile('attention_analyzer.html');
 }
 
 app.whenReady().then(() => {
